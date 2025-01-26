@@ -18,9 +18,9 @@ public:
 
 	virtual void Tick(float DeltaTime) override;
 
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	UBoxComponent* RoomExtent;
 
-	UPROPERTY(BlueprintReadOnly)
-	UPhysicsConstraintComponent* PhysicsConstraint;
+	//UPROPERTY(BlueprintReadOnly)
+	//UPhysicsConstraintComponent* PhysicsConstraint;
 };
