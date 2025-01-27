@@ -19,14 +19,25 @@ public:
 private:
 
     // Core generation steps
-    void CreateRooms(TArray<TSubclassOf<ARoomBase>> RoomClasses, int RoomNumber, FVector DungeonPosition, FVector2D DungeonBounds);
+    TArray<ARoomBase*> CreateRooms(const TArray<TSubclassOf<ARoomBase>>& RoomClasses, const int& RoomNumber, const FVector& DungeonPosition, const FVector2D& DungeonBounds);
 
-    bool SpawnRoom(TSubclassOf<ARoomBase> RoomClass, FVector DungeonPosition, FVector2D DungeonBounds);
-
+    //Helper functions
     FVector GetActorExtent(AActor* Actor);
+
+    TArray<FVector2D> GetPoints(const TArray<ARoomBase*>& Rooms);
 
     TArray<TPair<FVector2D, FVector2D>> GenerateCorridors(const TArray<TPair<FVector2D, FVector2D>>& MST);
 
+    void CheckAllRoomsSleeping();
+
+    void OnAllRoomsSleep();
+
     // Data
-    TArray<ARoomBase*> Rooms;
+    TArray<ARoomBase*> m_Rooms;
+
+    FTimerHandle SleepCheckHandle;
+    FTimerHandle SafetyHandle;
+
+    // Debug
+    float DungeonHeight;
 };

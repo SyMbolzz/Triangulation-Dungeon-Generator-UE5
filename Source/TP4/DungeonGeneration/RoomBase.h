@@ -18,7 +18,7 @@ public:
 
 	virtual void Tick(float DeltaTime) override;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	UBoxComponent* RoomExtent;
 
 	//UPROPERTY(BlueprintReadOnly)

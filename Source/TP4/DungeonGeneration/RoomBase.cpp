@@ -10,6 +10,16 @@ ARoomBase::ARoomBase()
 	RoomExtent->SetBoxExtent(FVector(500.f, 500.f, 200.f));
 	RoomExtent->SetLineThickness(5.f);
 
+    RoomExtent->SetSimulatePhysics(true);
+    RoomExtent->SetLinearDamping(10.f);
+    RoomExtent->SetEnableGravity(false);
+    RoomExtent->BodyInstance.bLockZTranslation = true;
+    RoomExtent->BodyInstance.bLockXRotation = true;
+    RoomExtent->BodyInstance.bLockYRotation = true;
+    RoomExtent->BodyInstance.bLockZRotation = true;
+    RoomExtent->SetCollisionProfileName(FName("PhysicsActor"), true);
+    RoomExtent->SetUseCCD(true);
+
     //// Create the physics constraint
     //PhysicsConstraint = CreateDefaultSubobject<UPhysicsConstraintComponent>(TEXT("PhysicsConstraint"));
     //PhysicsConstraint->SetupAttachment(RoomExtent);
