@@ -16,21 +16,26 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Dungeon Generation")
     bool GenerateDungeon(int Seed, TArray<TSubclassOf<ARoomBase>> RoomClasses, int RoomNumber, FVector DungeonPosition, FVector2D DungeonBounds);
 
+    UFUNCTION(BlueprintCallable, Category = "Dungeon Generation")
+    TArray<ARoomBase*> GetRooms() { return m_Rooms; }
+
 private:
 
     // Core generation steps
     TArray<ARoomBase*> CreateRooms(const TArray<TSubclassOf<ARoomBase>>& RoomClasses, const int& RoomNumber, const FVector& DungeonPosition, const FVector2D& DungeonBounds);
 
-    //Helper functions
-    FVector GetActorExtent(AActor* Actor);
+    void OnAllRoomsSleep();
 
-    TArray<FVector2D> GetPoints(const TArray<ARoomBase*>& Rooms);
-
+    void RemoveOverlapedRooms(TArray<ARoomBase*>& Rooms);
+    
     TArray<TPair<FVector2D, FVector2D>> GenerateCorridors(const TArray<TPair<FVector2D, FVector2D>>& MST);
 
-    void CheckAllRoomsSleeping();
+    void RemoveRoomsNotInCorridors(TArray<ARoomBase*>& Rooms, TArray<TPair<FVector2D, FVector2D>> Corridors);
+    
+    //Helper functions
+    TArray<FVector2D> GetPoints(const TArray<ARoomBase*>& Rooms);
 
-    void OnAllRoomsSleep();
+    void CheckAllRoomsSleeping();
 
     // Data
     TArray<ARoomBase*> m_Rooms;

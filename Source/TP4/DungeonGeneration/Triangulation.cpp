@@ -102,12 +102,10 @@ STriangle UTriangulation::GenerateSuperTriangle(const TArray<FVector2D>& Points)
     // Find the bounds of the points
     FVector2D MinPoint(FLT_MAX, FLT_MAX);
     FVector2D MaxPoint(-FLT_MAX, -FLT_MAX);
-
     for (const FVector2D& Point : Points)
     {
         MinPoint.X = FMath::Min(MinPoint.X, Point.X);
         MinPoint.Y = FMath::Min(MinPoint.Y, Point.Y);
-
         MaxPoint.X = FMath::Max(MaxPoint.X, Point.X);
         MaxPoint.Y = FMath::Max(MaxPoint.Y, Point.Y);
     }
@@ -119,10 +117,19 @@ STriangle UTriangulation::GenerateSuperTriangle(const TArray<FVector2D>& Points)
     float Width = MaxPoint.X - MinPoint.X;
     float Height = MaxPoint.Y - MinPoint.Y;
 
-    // Generate a large triangle around the bounds
-    FVector2D A = FVector2D(Center.X, Center.Y + Height * 2.0f); // Point above the bounds
-    FVector2D B = FVector2D(Center.X - Width * 2.0f, Center.Y - Height); // Bottom-left
-    FVector2D C = FVector2D(Center.X + Width * 2.0f, Center.Y - Height); // Bottom-right
+    // Use the maximum of width and height to ensure the triangle is large enough
+    float MaxDimension = FMath::Max(Width, Height);
+
+    // Make the triangle large
+    float Scale = 20.0f;
+
+    // Generate a large equilateral triangle around the bounds
+    float TriangleHeight = MaxDimension * Scale * FMath::Sqrt(3.0f) * 0.5f;
+    float HalfWidth = MaxDimension * Scale * 0.5f;
+
+    FVector2D A = FVector2D(Center.X, Center.Y + TriangleHeight); // Top
+    FVector2D B = FVector2D(Center.X - HalfWidth, Center.Y - TriangleHeight * 0.5f); // Bottom-left
+    FVector2D C = FVector2D(Center.X + HalfWidth, Center.Y - TriangleHeight * 0.5f); // Bottom-right
 
     return STriangle(A, B, C);
 }

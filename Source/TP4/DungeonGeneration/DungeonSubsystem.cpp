@@ -62,71 +62,46 @@ TArray<ARoomBase*> UDungeonSubsystem::CreateRooms(const TArray<TSubclassOf<ARoom
     return SpawnedRooms;
 }
 
-FVector UDungeonSubsystem::GetActorExtent(AActor* Actor)
-{
-    FVector Origin;
-    FVector Extent;
-    Actor->GetActorBounds(true, Origin, Extent);
-    return Extent;
-}
-
-TArray<FVector2D> UDungeonSubsystem::GetPoints(const TArray<ARoomBase*>& Rooms)
-{
-    TArray<FVector2D> Points;
-
-    // Select randomly one fourth of the rooms
-    for (int i = 0; i < Rooms.Num(); i++)
-    {
-        if (i%4 == 0)
-        {
-            Points.Add(FVector2D(Rooms[i]->GetActorLocation()));
-        }
-    }
-
-    return Points;
-}
-
-TArray<TPair<FVector2D, FVector2D>> UDungeonSubsystem::GenerateCorridors(const TArray<TPair<FVector2D, FVector2D>>& MST)
-{
-    TArray<TPair<FVector2D, FVector2D>> Corridors;
-    for (const auto& Edge : MST)
-    {
-        FVector2D IntermediatePoint = FMath::RandBool() ? FVector2D(Edge.Value.X, Edge.Key.Y) :
-                                               FVector2D(Edge.Key.X, Edge.Value.Y);
-
-        Corridors.Add(TPair<FVector2D, FVector2D>(Edge.Key, IntermediatePoint));
-        Corridors.Add(TPair<FVector2D, FVector2D>(IntermediatePoint, Edge.Value));
-    }
-
-    return Corridors;
-}
-
-void UDungeonSubsystem::CheckAllRoomsSleeping()
-{
-    // Check if all rooms are sleeping
-    bool bAllSleeping = true;
-    for (const ARoomBase* Room : m_Rooms)
-    {
-        if (Room->RoomExtent->IsAnyRigidBodyAwake())
-        {
-            bAllSleeping = false;
-            break;
-        }
-    }
-
-    if (bAllSleeping && SleepCheckHandle.IsValid())
-    {
-        SleepCheckHandle.Invalidate();
-        OnAllRoomsSleep();
-    }
-}
-
 void UDungeonSubsystem::OnAllRoomsSleep()
 {
-    UE_LOG(LogTemp, Warning, TEXT("Rooms sleep"));
+    RemoveOverlapedRooms(m_Rooms);
 
+    TArray<FVector2D> Points = GetPoints(m_Rooms);
+
+    TArray<STriangle> Triangles = UTriangulation::GenerateTriangulation(Points);
+
+    TArray<TPair<FVector2D, FVector2D>> MST = UMinSpanTree::GenerateMST(Triangles);
+
+    TArray<TPair<FVector2D, FVector2D>> Corridors = GenerateCorridors(MST);
+
+    RemoveRoomsNotInCorridors(m_Rooms, Corridors);
+
+    // Draw triangles
+    for (const auto& Triangle : Triangles)
+    {
+        FColor Color = FColor::Red;
+        DrawDebugLine(GetWorld(), FVector(Triangle.A, DungeonHeight + 100.f), FVector(Triangle.B, DungeonHeight + 100.f), Color, true, -1.f, 0, 5.f);
+        DrawDebugLine(GetWorld(), FVector(Triangle.B, DungeonHeight + 100.f), FVector(Triangle.C, DungeonHeight + 100.f), Color, true, -1.f, 0, 5.f);
+        DrawDebugLine(GetWorld(), FVector(Triangle.C, DungeonHeight + 100.f), FVector(Triangle.A, DungeonHeight + 100.f), Color, true, -1.f, 0, 5.f);
+    }
+
+    // Draw minimum spanning tree
+    for (const auto& Edge : MST)
+    {
+        DrawDebugLine(GetWorld(), FVector(Edge.Key, DungeonHeight + 200.f), FVector(Edge.Value, DungeonHeight + 200.f), FColor::Green, true, -1.f, 0, 20.f);
+    }
+
+    // Draw corridors
+    for (const auto& Corridor : Corridors)
+    {
+        DrawDebugLine(GetWorld(), FVector(Corridor.Key, DungeonHeight + 300.f), FVector(Corridor.Value, DungeonHeight + 300.f), FColor::Blue, true, -1.f, 0, 20.f);
+    }
+}
+
+void UDungeonSubsystem::RemoveOverlapedRooms(TArray<ARoomBase*>& Rooms)
+{
     TArray<ARoomBase*> RoomsToRemove;
-    for (ARoomBase* Room : m_Rooms)
+    for (ARoomBase* Room : Rooms)
     {
         if (!IsValid(Room))
         {
@@ -151,35 +126,112 @@ void UDungeonSubsystem::OnAllRoomsSleep()
 
     for (ARoomBase* RoomToRemove : RoomsToRemove)
     {
-        m_Rooms.Remove(RoomToRemove);
+        Rooms.Remove(RoomToRemove);
     }
+}
 
-    TArray<FVector2D> Points = GetPoints(m_Rooms);
+TArray<FVector2D> UDungeonSubsystem::GetPoints(const TArray<ARoomBase*>& Rooms)
+{
+    TArray<ARoomBase*> RoomsCopy = Rooms;
+    Algo::RandomShuffle(RoomsCopy);
 
-    TArray<STriangle> Triangles = UTriangulation::GenerateTriangulation(Points);
+    TArray<FVector2D> Points;
 
-    TArray<TPair<FVector2D, FVector2D>> MST = UMinSpanTree::GenerateMST(Triangles);
+    // Calculate how many points to get (at least 4, up to 1/4 of rooms)
+    int32 NumPointsToGet = FMath::Max(4, RoomsCopy.Num() / 4);
 
-    TArray<TPair<FVector2D, FVector2D>> Corridors = GenerateCorridors(MST);
+    // Make sure we don't try to get more points than we have rooms
+    NumPointsToGet = FMath::Min(NumPointsToGet, RoomsCopy.Num());
 
-    // Draw triangles
-    for (const auto& Triangle : Triangles)
+    // Select the points
+    for (int32 i = 0; i < NumPointsToGet; i++)
     {
-        FColor Color = FColor::Red;
-        DrawDebugLine(GetWorld(), FVector(Triangle.A, DungeonHeight), FVector(Triangle.B, DungeonHeight), Color, true, -1.f, 0, 5.f);
-        DrawDebugLine(GetWorld(), FVector(Triangle.B, DungeonHeight), FVector(Triangle.C, DungeonHeight), Color, true, -1.f, 0, 5.f);
-        DrawDebugLine(GetWorld(), FVector(Triangle.C, DungeonHeight), FVector(Triangle.A, DungeonHeight), Color, true, -1.f, 0, 5.f);
+        Points.Add(FVector2D(RoomsCopy[i]->GetActorLocation()));
     }
 
-    // Draw minimum spanning tree
+    return Points;
+}
+
+TArray<TPair<FVector2D, FVector2D>> UDungeonSubsystem::GenerateCorridors(const TArray<TPair<FVector2D, FVector2D>>& MST)
+{
+    TArray<TPair<FVector2D, FVector2D>> Corridors;
     for (const auto& Edge : MST)
     {
-        DrawDebugLine(GetWorld(), FVector(Edge.Key, DungeonHeight + 100.f), FVector(Edge.Value, DungeonHeight + 100.f), FColor::Green, true, -1.f, 0, 20.f);
+        FVector2D IntermediatePoint = FMath::RandBool() ? FVector2D(Edge.Value.X, Edge.Key.Y) :
+                                               FVector2D(Edge.Key.X, Edge.Value.Y);
+
+        Corridors.Add(TPair<FVector2D, FVector2D>(Edge.Key, IntermediatePoint));
+        Corridors.Add(TPair<FVector2D, FVector2D>(IntermediatePoint, Edge.Value));
     }
 
-    // Draw corridors
-    for (const auto& Corridor : Corridors)
+    return Corridors;
+}
+
+void UDungeonSubsystem::RemoveRoomsNotInCorridors(TArray<ARoomBase*>& Rooms, TArray<TPair<FVector2D, FVector2D>> Corridors)
+{
+    for (ARoomBase* Room : Rooms)
     {
-        DrawDebugLine(GetWorld(), FVector(Corridor.Key, DungeonHeight + 200.f), FVector(Corridor.Value, DungeonHeight + 200.f), FColor::Blue, true, -1.f, 0, 20.f);
+        Room->RoomExtent->SetCollisionProfileName(FName("BlockAll"));
+    }
+
+    TArray<ARoomBase*> RoomsToKeep;
+
+    for (const TPair<FVector2D, FVector2D>& Corridor : Corridors)
+    {
+        TArray<FHitResult> Hits;
+        if (GetWorld()->LineTraceMultiByChannel(Hits, FVector(Corridor.Key, DungeonHeight), FVector(Corridor.Value, DungeonHeight), ECollisionChannel::ECC_WorldDynamic))
+        {
+            for (const FHitResult& Hit : Hits)
+            {
+                if (ARoomBase* Room = Cast<ARoomBase>(Hit.GetActor()))
+                {
+                    RoomsToKeep.AddUnique(Room);
+                }
+            }
+        }
+        if (GetWorld()->LineTraceMultiByChannel(Hits, FVector(Corridor.Value, DungeonHeight), FVector(Corridor.Key, DungeonHeight), ECollisionChannel::ECC_WorldDynamic))
+        {
+            for (const FHitResult& Hit : Hits)
+            {
+                if (ARoomBase* Room = Cast<ARoomBase>(Hit.GetActor()))
+                {
+                    RoomsToKeep.AddUnique(Room);
+                }
+            }
+        }
+    }
+
+    for (int32 i = Rooms.Num() - 1; i >= 0; --i)
+    {
+        ARoomBase* Room = Rooms[i];
+        if (Room)
+        {
+            // Remove Room if it doesn't exist in ActorsToKeep
+            if (!RoomsToKeep.Contains(Room))
+            {
+                Rooms[i]->Destroy();
+                Rooms.RemoveAt(i);
+            }
+        }
+    }
+}
+
+void UDungeonSubsystem::CheckAllRoomsSleeping()
+{
+    // Check if all rooms are sleeping
+    bool bAllSleeping = true;
+    for (const ARoomBase* Room : m_Rooms)
+    {
+        if (Room->RoomExtent->IsAnyRigidBodyAwake())
+        {
+            bAllSleeping = false;
+            break;
+        }
+    }
+
+    if (bAllSleeping && SleepCheckHandle.IsValid())
+    {
+        SleepCheckHandle.Invalidate();
+        OnAllRoomsSleep();
     }
 }
