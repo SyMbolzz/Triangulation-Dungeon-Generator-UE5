@@ -13,12 +13,28 @@ class TP4_API UDungeonSubsystem : public UGameInstanceSubsystem
 
 public:
 
-    // Main dungeon generation function
+    /**
+     * Generates a procedural dungeon with rooms and corridors
+     * @param Seed - Random seed for dungeon generation
+     * @param RoomClasses - Array of room types to spawn
+     * @param RoomSpawned - Total number of rooms to generate
+     * @param CorridorClasses - Array of corridor types to use
+     * @param DungeonPosition - Center position of the dungeon
+     * @param DungeonMinBounds - Minimum X,Y bounds for room placement
+     * @param DrawBounds - Whether to draw debug bounds
+     * @param DrawTriangulation - Whether to draw debug triangulation
+     * @param DrawMST - Whether to draw minimum spanning tree
+     * @param DrawCorridorLines - Whether to draw corridor debug lines
+     * @return bool - Success/failure of dungeon generation
+     */
     UFUNCTION(BlueprintCallable, Category = "Dungeon Generation")
-    bool GenerateDungeon(int Seed, TArray<TSubclassOf<ARoomBase>> RoomClasses, int RoomNumber, TArray<TSubclassOf<ACorridorBase>> CorridorClasses, FVector DungeonPosition, FVector2D DungeonMinBounds);
+    bool GenerateDungeon(int Seed, TArray<TSubclassOf<ARoomBase>> RoomClasses, int RoomSpawned, TArray<TSubclassOf<ACorridorBase>> CorridorClasses, FVector DungeonPosition, FVector2D DungeonMinBounds, bool DrawBounds, bool DrawTriangulation, bool DrawMST, bool DrawCorridorLines);
 
     UFUNCTION(BlueprintCallable, Category = "Dungeon Generation")
     TArray<ARoomBase*> GetRooms() { return m_Rooms; }
+
+    UFUNCTION(BlueprintCallable, Category = "Dungeon Generation")
+    TArray<ACorridorBase*> GetCorridors() { return m_Corridors; }
 
 private:
 
@@ -49,4 +65,9 @@ private:
     FTimerHandle SafetyHandle;
 
     float DungeonHeight;
+
+    // Debug
+    bool m_DrawTriangulation;
+    bool m_DrawMST;
+    bool m_DrawCorridorLines;
 };

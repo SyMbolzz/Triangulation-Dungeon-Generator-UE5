@@ -1,20 +1,26 @@
 ﻿#include "Triangulation.h"
 
+/**
+ * Implements Bowyer-Watson algorithm for Delaunay triangulation
+ * @param Points - Array of 2D points to triangulate
+ * @return Array of triangles forming the Delaunay triangulation
+ */
 TArray<STriangle> UTriangulation::GenerateTriangulation(const TArray<FVector2D>& Points)
 {
     TArray<STriangle> Triangles;
 
-    // Step 1: Create a super-triangle that contains all points
+    // Create initial super-triangle that contains all points
     STriangle SuperTriangle = GenerateSuperTriangle(Points);
     Triangles.Add(SuperTriangle);
 
-    // Step 2: Add points one by one
+    // Process each point to build triangulation
     for (const FVector2D& Point : Points)
     {
-        // Find all triangles whose circumcircle contains the point
+        // Find triangles whose circumcircle contains the current point
         TArray<STriangle> BadTriangles;
         TArray<SEdge> Polygon;
 
+        // Collect triangles that violate the Delaunay condition
         for (const STriangle& Triangle : Triangles)
         {
             if (GetCircumcircle(Triangle).ContainsPoint(Point))
@@ -23,9 +29,10 @@ TArray<STriangle> UTriangulation::GenerateTriangulation(const TArray<FVector2D>&
             }
         }
 
-        // Get unique edges from bad triangles
+        // Find boundary edges of the hole created by removed triangles
         for (const STriangle& Triangle : BadTriangles)
         {
+            // Create edges from triangle vertices
             SEdge Edge1(Triangle.A, Triangle.B);
             SEdge Edge2(Triangle.B, Triangle.C);
             SEdge Edge3(Triangle.C, Triangle.A);
@@ -39,6 +46,7 @@ TArray<STriangle> UTriangulation::GenerateTriangulation(const TArray<FVector2D>&
             {
                 if (&Triangle == &OtherTriangle) continue;
 
+                // Check if edges are shared with other triangles
                 if ((Edge1 == SEdge(OtherTriangle.A, OtherTriangle.B)) ||
                     (Edge1 == SEdge(OtherTriangle.B, OtherTriangle.C)) ||
                     (Edge1 == SEdge(OtherTriangle.C, OtherTriangle.A)))
@@ -61,27 +69,27 @@ TArray<STriangle> UTriangulation::GenerateTriangulation(const TArray<FVector2D>&
                 }
             }
 
-            // Add unshared edges to polygon
+            // Add unshared (boundary) edges to polygon
             if (!IsShared1) Polygon.AddUnique(Edge1);
             if (!IsShared2) Polygon.AddUnique(Edge2);
             if (!IsShared3) Polygon.AddUnique(Edge3);
         }
 
-        // Remove bad triangles
+        // Remove triangles that violate Delaunay condition
         for (const STriangle& Triangle : BadTriangles)
         {
             Triangles.Remove(Triangle);
         }
 
-        // Create new triangles from the polygon edges
+        // Create new triangles connecting the point to boundary edges
         for (const SEdge& Edge : Polygon)
         {
             Triangles.Add(STriangle(Edge.Start, Edge.End, Point));
         }
     }
 
-    // Remove triangles that share vertices with super-triangle
-    for (int32 i = Triangles.Num() - 1; i >= 0; --i)
+    // Clean up by removing triangles connected to super-triangle
+    for (int i = Triangles.Num() - 1; i >= 0; --i)
     {
         if (SharesVertexWithSuperTriangle(Triangles[i], SuperTriangle))
         {
@@ -92,6 +100,10 @@ TArray<STriangle> UTriangulation::GenerateTriangulation(const TArray<FVector2D>&
     return Triangles;
 }
 
+/**
+ * Creates a super-triangle that contains all input points
+ * Used as initial triangle for Bowyer-Watson algorithm
+ */
 STriangle UTriangulation::GenerateSuperTriangle(const TArray<FVector2D>& Points)
 {
     if (Points.Num() == 0)
@@ -99,7 +111,7 @@ STriangle UTriangulation::GenerateSuperTriangle(const TArray<FVector2D>& Points)
         return STriangle(FVector2D::ZeroVector, FVector2D::ZeroVector, FVector2D::ZeroVector);
     }
 
-    // Find the bounds of the points
+    // Find bounding box of all points
     FVector2D MinPoint(FLT_MAX, FLT_MAX);
     FVector2D MaxPoint(-FLT_MAX, -FLT_MAX);
     for (const FVector2D& Point : Points)
@@ -110,23 +122,18 @@ STriangle UTriangulation::GenerateSuperTriangle(const TArray<FVector2D>& Points)
         MaxPoint.Y = FMath::Max(MaxPoint.Y, Point.Y);
     }
 
-    // Calculate the center of the bounds
+    // Calculate center and size of bounding box
     FVector2D Center = (MinPoint + MaxPoint) * 0.5f;
-
-    // Calculate extents
     float Width = MaxPoint.X - MinPoint.X;
     float Height = MaxPoint.Y - MinPoint.Y;
-
-    // Use the maximum of width and height to ensure the triangle is large enough
     float MaxDimension = FMath::Max(Width, Height);
 
-    // Make the triangle large
+    // Create large equilateral triangle around points
     float Scale = 20.0f;
-
-    // Generate a large equilateral triangle around the bounds
     float TriangleHeight = MaxDimension * Scale * FMath::Sqrt(3.0f) * 0.5f;
     float HalfWidth = MaxDimension * Scale * 0.5f;
 
+    // Calculate triangle vertices
     FVector2D A = FVector2D(Center.X, Center.Y + TriangleHeight); // Top
     FVector2D B = FVector2D(Center.X - HalfWidth, Center.Y - TriangleHeight * 0.5f); // Bottom-left
     FVector2D C = FVector2D(Center.X + HalfWidth, Center.Y - TriangleHeight * 0.5f); // Bottom-right
@@ -134,6 +141,10 @@ STriangle UTriangulation::GenerateSuperTriangle(const TArray<FVector2D>& Points)
     return STriangle(A, B, C);
 }
 
+/**
+ * Calculates circumcircle of a triangle
+ * Used to check Delaunay condition
+ */
 SCircumcircle UTriangulation::GetCircumcircle(const STriangle& Triangle)
 {
     FVector2D A = Triangle.A;
@@ -142,15 +153,16 @@ SCircumcircle UTriangulation::GetCircumcircle(const STriangle& Triangle)
 
     SCircumcircle Circle;
 
-    // Calculate the determinant (D)
+    // Calculate determinant for circumcenter calculation
     float D = 2 * (A.X * (B.Y - C.Y) + B.X * (C.Y - A.Y) + C.X * (A.Y - B.Y));
+
+    // Handle degenerate case (collinear points)
     if (FMath::Abs(D) < KINDA_SMALL_NUMBER)
     {
-        // The points are collinear, no circumcircle exists
         return SCircumcircle();
     }
 
-    // Calculate the center (Ux, Uy)
+    // Calculate circumcenter coordinates
     float Ux = ((A.X * A.X + A.Y * A.Y) * (B.Y - C.Y) +
         (B.X * B.X + B.Y * B.Y) * (C.Y - A.Y) +
         (C.X * C.X + C.Y * C.Y) * (A.Y - B.Y)) / D;

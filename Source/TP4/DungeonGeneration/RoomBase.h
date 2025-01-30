@@ -21,6 +21,4 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	UBoxComponent* RoomExtent;
 
-	//UPROPERTY(BlueprintReadOnly)
-	//UPhysicsConstraintComponent* PhysicsConstraint;
 };

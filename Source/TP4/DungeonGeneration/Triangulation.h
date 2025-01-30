@@ -4,6 +4,10 @@
 #include "UObject/NoExportTypes.h"
 #include "Triangulation.generated.h"
 
+/**
+ * Represents a triangle in 2D space
+ * Vertices are stored in sorted order for consistent comparison
+ */
 struct STriangle
 {
 public:
@@ -11,7 +15,7 @@ public:
 
     STriangle(FVector2D InA, FVector2D InB, FVector2D InC)
     {
-        // Sort vertices consistently
+        // Sort vertices to ensure consistent ordering for comparison
         TArray<FVector2D> Vertices = { InA, InB, InC };
         Vertices.Sort();
         A = Vertices[0];
@@ -26,6 +30,10 @@ public:
     }
 };
 
+/**
+ * Represents an edge between two points
+ * Points are stored in sorted order for consistent comparison
+ */
 struct SEdge
 {
 public:
@@ -34,7 +42,7 @@ public:
 
     SEdge(FVector2D InStart, FVector2D InEnd)
     {
-        // Ensure consistent ordering of points
+        // Ensure consistent ordering by sorting points
         if (InStart.X < InEnd.X || (InStart.X == InEnd.X && InStart.Y < InEnd.Y))
         {
             Start = InStart;
@@ -53,12 +61,17 @@ public:
     }
 };
 
+/**
+ * Represents a circumcircle of a triangle
+ * Used in Delaunay triangulation algorithm
+ */
 struct SCircumcircle
 {
 public:
     FVector2D Center;
     float Radius;
 
+    // Checks if a point lies within the circumcircle
     bool ContainsPoint(const FVector2D& Point) const
     {
         return FVector2D::Distance(Center, Point) <= Radius;

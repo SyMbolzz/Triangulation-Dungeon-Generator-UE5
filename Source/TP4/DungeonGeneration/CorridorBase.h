@@ -16,10 +16,4 @@ public:
 
 	virtual void Tick(float DeltaTime) override;
 
-	UPROPERTY(BlueprintReadOnly)
-	float CorridorLength;
-
-	UFUNCTION(BlueprintImplementableEvent)
-	void UpdateSplines();
-
 };

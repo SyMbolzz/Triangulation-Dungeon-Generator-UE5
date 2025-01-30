@@ -1,16 +1,21 @@
 #include "MinSpanTree.h"
 
+/**
+ * Generates Minimum Spanning Tree using Kruskal's algorithm
+ * @param Triangulation - Input Delaunay triangulation
+ * @return Array of edges forming the MST
+ */
 TArray<TPair<FVector2D, FVector2D>> UMinSpanTree::GenerateMST(const TArray<STriangle>& Triangulation)
 {
-    // Get unique points from triangulation
+    // Extract unique points from triangulation
     TArray<FVector2D> Points = GetPointsOfTriangles(Triangulation);
 
-    // Create all unique edges from triangulation
+    // Create edges with their lengths
     TArray<TPair<float, TPair<FVector2D, FVector2D>>> Edges;
 
     for (const STriangle& Triangle : Triangulation)
     {
-        // Calculate and store edges with their lengths
+        // Add all edges from triangle with their lengths
         Edges.Add(TPair<float, TPair<FVector2D, FVector2D>>(FVector2D::Distance(Triangle.A, Triangle.B),
                                                             TPair<FVector2D, FVector2D>(Triangle.A, Triangle.B)));
         Edges.Add(TPair<float, TPair<FVector2D, FVector2D>>(FVector2D::Distance(Triangle.B, Triangle.C),
@@ -19,13 +24,13 @@ TArray<TPair<FVector2D, FVector2D>> UMinSpanTree::GenerateMST(const TArray<STria
                                                             TPair<FVector2D, FVector2D>(Triangle.C, Triangle.A)));
     }
 
-    // Sort edges by length
+    // Sort edges by length (critical for Kruskal's algorithm)
     Edges.Sort([](const TPair<float, TPair<FVector2D, FVector2D>>& A, const TPair<float, TPair<FVector2D, FVector2D>>& B)
     {
         return A.Key < B.Key;
     });
 
-    // Remove duplicate edges
+    // Remove duplicate edges (same edge from different triangles)
     for (int i = Edges.Num() - 1; i >= 0; --i)
     {
         for (int j = i - 1; j >= 0; --j)
@@ -41,29 +46,30 @@ TArray<TPair<FVector2D, FVector2D>> UMinSpanTree::GenerateMST(const TArray<STria
         }
     }
 
-    // MST generation
+    // Build MST using Kruskal's algorithm
     TArray<TPair<FVector2D, FVector2D>> MST;
     TArray<FVector2D> ConnectedPoints;
 
-    // Start with the first point
+    // Start with first point
     if (Points.Num() > 0)
     {
         ConnectedPoints.Add(Points[0]);
     }
 
+    // Add edges until all points are connecte
     while (ConnectedPoints.Num() < Points.Num())
     {
         float BestDistance = FLT_MAX;
         TPair<FVector2D, FVector2D> BestEdge;
         bool EdgeFound = false;
 
-        // Find the shortest edge connecting a connected point to an unconnected point
+        // Find shortest edge that connects a new point
         for (const auto& Edge : Edges)
         {
             bool AConnected = ConnectedPoints.Contains(Edge.Value.Key);
             bool BConnected = ConnectedPoints.Contains(Edge.Value.Value);
 
-            // Exactly one point should be in the connected set
+            // Edge must connect one connected and one unconnected point
             if (AConnected ^ BConnected)
             {
                 if (Edge.Key < BestDistance)
@@ -75,7 +81,7 @@ TArray<TPair<FVector2D, FVector2D>> UMinSpanTree::GenerateMST(const TArray<STria
             }
         }
 
-        // If we found an edge, add it to MST and mark points as connected
+        // Add best edge to MST
         if (EdgeFound)
         {
             MST.Add(BestEdge);
@@ -84,8 +90,7 @@ TArray<TPair<FVector2D, FVector2D>> UMinSpanTree::GenerateMST(const TArray<STria
         }
         else
         {
-            // No more edges can be added
-            break;
+            break; // No more valid edges found
         }
     }
 
