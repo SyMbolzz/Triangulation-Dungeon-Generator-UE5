@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "RoomBase.h"
+#include "CorridorBase.h"
 #include "DungeonSubsystem.generated.h"
 
 UCLASS()
@@ -14,7 +15,7 @@ public:
 
     // Main dungeon generation function
     UFUNCTION(BlueprintCallable, Category = "Dungeon Generation")
-    bool GenerateDungeon(int Seed, TArray<TSubclassOf<ARoomBase>> RoomClasses, int RoomNumber, FVector DungeonPosition, FVector2D DungeonBounds);
+    bool GenerateDungeon(int Seed, TArray<TSubclassOf<ARoomBase>> RoomClasses, int RoomNumber, TArray<TSubclassOf<ACorridorBase>> CorridorClasses, FVector DungeonPosition, FVector2D DungeonMinBounds);
 
     UFUNCTION(BlueprintCallable, Category = "Dungeon Generation")
     TArray<ARoomBase*> GetRooms() { return m_Rooms; }
@@ -28,9 +29,11 @@ private:
 
     void RemoveOverlapedRooms(TArray<ARoomBase*>& Rooms);
     
-    TArray<TPair<FVector2D, FVector2D>> GenerateCorridors(const TArray<TPair<FVector2D, FVector2D>>& MST);
+    TArray<TPair<FVector2D, FVector2D>> GenerateCorridorLines(const TArray<TPair<FVector2D, FVector2D>>& MST);
 
-    void RemoveRoomsNotInCorridors(TArray<ARoomBase*>& Rooms, TArray<TPair<FVector2D, FVector2D>> Corridors);
+    void RemoveRoomsNotInCorridorLines(TArray<ARoomBase*>& Rooms, TArray<TPair<FVector2D, FVector2D>> CorridorLines);
+
+    TArray<ACorridorBase*> CreateCorridors(TArray<TPair<FVector2D, FVector2D>> CorridorLines);
     
     //Helper functions
     TArray<FVector2D> GetPoints(const TArray<ARoomBase*>& Rooms);
@@ -39,10 +42,11 @@ private:
 
     // Data
     TArray<ARoomBase*> m_Rooms;
+    TArray<TSubclassOf<ACorridorBase>> m_CorridorClasses;
+    TArray<ACorridorBase*> m_Corridors;
 
     FTimerHandle SleepCheckHandle;
     FTimerHandle SafetyHandle;
 
-    // Debug
     float DungeonHeight;
 };

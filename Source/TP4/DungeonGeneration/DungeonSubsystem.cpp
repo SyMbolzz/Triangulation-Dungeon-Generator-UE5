@@ -4,14 +4,17 @@
 #include "Triangulation.h"
 #include "MinSpanTree.h"
 
-bool UDungeonSubsystem::GenerateDungeon(int Seed, TArray<TSubclassOf<ARoomBase>> RoomClasses, int RoomNumber, FVector DungeonPosition, FVector2D DungeonBounds)
+bool UDungeonSubsystem::GenerateDungeon(int Seed, TArray<TSubclassOf<ARoomBase>> RoomClasses, int RoomNumber, TArray<TSubclassOf<ACorridorBase>> CorridorClasses, FVector DungeonPosition, FVector2D DungeonMinBounds)
 {
     if (RoomClasses.IsEmpty()) { return false; }
 
     // Seed the randomness
     FMath::RandInit(Seed);
 
-    m_Rooms = CreateRooms(RoomClasses, RoomNumber, DungeonPosition, DungeonBounds);
+    DungeonHeight = DungeonPosition.Z;
+    m_CorridorClasses = CorridorClasses;
+
+    m_Rooms = CreateRooms(RoomClasses, RoomNumber, DungeonPosition, DungeonMinBounds);
 
     GetWorld()->GetTimerManager().SetTimer(SleepCheckHandle, this, &UDungeonSubsystem::CheckAllRoomsSleeping, 0.05f, true);
     
@@ -26,9 +29,8 @@ bool UDungeonSubsystem::GenerateDungeon(int Seed, TArray<TSubclassOf<ARoomBase>>
             }
         }, 5.0f, false);
 
-    // Draw dungeon bounds
-    DrawDebugBox(GetWorld(), DungeonPosition, FVector(DungeonBounds, 0.f), FColor::Red, true, -1.f, 0, 1.f);
-    DungeonHeight = DungeonPosition.Z;
+    //// Draw dungeon bounds
+    //DrawDebugBox(GetWorld(), DungeonPosition, FVector(DungeonMinBounds, 0.f), FColor::Red, true, -1.f, 0, 1.f);
 
     return true;
 }
@@ -72,30 +74,37 @@ void UDungeonSubsystem::OnAllRoomsSleep()
 
     TArray<TPair<FVector2D, FVector2D>> MST = UMinSpanTree::GenerateMST(Triangles);
 
-    TArray<TPair<FVector2D, FVector2D>> Corridors = GenerateCorridors(MST);
+    TArray<TPair<FVector2D, FVector2D>> CorridorLines = GenerateCorridorLines(MST);
 
-    RemoveRoomsNotInCorridors(m_Rooms, Corridors);
+    RemoveRoomsNotInCorridorLines(m_Rooms, CorridorLines);
 
-    // Draw triangles
-    for (const auto& Triangle : Triangles)
+    m_Corridors = CreateCorridors(CorridorLines);
+
+    for (ARoomBase* Room : m_Rooms)
     {
-        FColor Color = FColor::Red;
-        DrawDebugLine(GetWorld(), FVector(Triangle.A, DungeonHeight + 100.f), FVector(Triangle.B, DungeonHeight + 100.f), Color, true, -1.f, 0, 5.f);
-        DrawDebugLine(GetWorld(), FVector(Triangle.B, DungeonHeight + 100.f), FVector(Triangle.C, DungeonHeight + 100.f), Color, true, -1.f, 0, 5.f);
-        DrawDebugLine(GetWorld(), FVector(Triangle.C, DungeonHeight + 100.f), FVector(Triangle.A, DungeonHeight + 100.f), Color, true, -1.f, 0, 5.f);
+        Room->RoomExtent->SetCollisionProfileName(FName("NoCollision"));
     }
 
-    // Draw minimum spanning tree
-    for (const auto& Edge : MST)
-    {
-        DrawDebugLine(GetWorld(), FVector(Edge.Key, DungeonHeight + 200.f), FVector(Edge.Value, DungeonHeight + 200.f), FColor::Green, true, -1.f, 0, 20.f);
-    }
+    //// Draw triangles
+    //for (const auto& Triangle : Triangles)
+    //{
+    //    FColor Color = FColor::Red;
+    //    DrawDebugLine(GetWorld(), FVector(Triangle.A, DungeonHeight + 100.f), FVector(Triangle.B, DungeonHeight + 100.f), Color, true, -1.f, 0, 5.f);
+    //    DrawDebugLine(GetWorld(), FVector(Triangle.B, DungeonHeight + 100.f), FVector(Triangle.C, DungeonHeight + 100.f), Color, true, -1.f, 0, 5.f);
+    //    DrawDebugLine(GetWorld(), FVector(Triangle.C, DungeonHeight + 100.f), FVector(Triangle.A, DungeonHeight + 100.f), Color, true, -1.f, 0, 5.f);
+    //}
 
-    // Draw corridors
-    for (const auto& Corridor : Corridors)
-    {
-        DrawDebugLine(GetWorld(), FVector(Corridor.Key, DungeonHeight + 300.f), FVector(Corridor.Value, DungeonHeight + 300.f), FColor::Blue, true, -1.f, 0, 20.f);
-    }
+    //// Draw minimum spanning tree
+    //for (const auto& Edge : MST)
+    //{
+    //    DrawDebugLine(GetWorld(), FVector(Edge.Key, DungeonHeight + 200.f), FVector(Edge.Value, DungeonHeight + 200.f), FColor::Green, true, -1.f, 0, 20.f);
+    //}
+
+    //// Draw corridors
+    //for (const auto& Corridor : CorridorLines)
+    //{
+    //    DrawDebugLine(GetWorld(), FVector(Corridor.Key, DungeonHeight + 300.f), FVector(Corridor.Value, DungeonHeight + 300.f), FColor::Blue, true, -1.f, 0, 20.f);
+    //}
 }
 
 void UDungeonSubsystem::RemoveOverlapedRooms(TArray<ARoomBase*>& Rooms)
@@ -152,7 +161,7 @@ TArray<FVector2D> UDungeonSubsystem::GetPoints(const TArray<ARoomBase*>& Rooms)
     return Points;
 }
 
-TArray<TPair<FVector2D, FVector2D>> UDungeonSubsystem::GenerateCorridors(const TArray<TPair<FVector2D, FVector2D>>& MST)
+TArray<TPair<FVector2D, FVector2D>> UDungeonSubsystem::GenerateCorridorLines(const TArray<TPair<FVector2D, FVector2D>>& MST)
 {
     TArray<TPair<FVector2D, FVector2D>> Corridors;
     for (const auto& Edge : MST)
@@ -167,7 +176,7 @@ TArray<TPair<FVector2D, FVector2D>> UDungeonSubsystem::GenerateCorridors(const T
     return Corridors;
 }
 
-void UDungeonSubsystem::RemoveRoomsNotInCorridors(TArray<ARoomBase*>& Rooms, TArray<TPair<FVector2D, FVector2D>> Corridors)
+void UDungeonSubsystem::RemoveRoomsNotInCorridorLines(TArray<ARoomBase*>& Rooms, TArray<TPair<FVector2D, FVector2D>> CorridorLines)
 {
     for (ARoomBase* Room : Rooms)
     {
@@ -176,7 +185,7 @@ void UDungeonSubsystem::RemoveRoomsNotInCorridors(TArray<ARoomBase*>& Rooms, TAr
 
     TArray<ARoomBase*> RoomsToKeep;
 
-    for (const TPair<FVector2D, FVector2D>& Corridor : Corridors)
+    for (const TPair<FVector2D, FVector2D>& Corridor : CorridorLines)
     {
         TArray<FHitResult> Hits;
         if (GetWorld()->LineTraceMultiByChannel(Hits, FVector(Corridor.Key, DungeonHeight), FVector(Corridor.Value, DungeonHeight), ECollisionChannel::ECC_WorldDynamic))
@@ -214,6 +223,25 @@ void UDungeonSubsystem::RemoveRoomsNotInCorridors(TArray<ARoomBase*>& Rooms, TAr
             }
         }
     }
+}
+
+TArray<ACorridorBase*> UDungeonSubsystem::CreateCorridors(TArray<TPair<FVector2D, FVector2D>> CorridorLines)
+{
+    TArray<ACorridorBase*> Corridors;
+    for (const TPair<FVector2D, FVector2D>& CorridorLine : CorridorLines)
+    {
+        TSubclassOf<ACorridorBase> CorridorClass = m_CorridorClasses[FMath::RoundToInt(FMath::RandRange(0.f, m_CorridorClasses.Num() - 1.f))];
+        FVector Location = FVector(CorridorLine.Key, DungeonHeight);
+        FRotator Rotation = FVector(CorridorLine.Value - CorridorLine.Key, 0.f).ToOrientationRotator();
+        FVector Scale = FVector(FVector::Dist(FVector(CorridorLine.Key, 0.f), FVector(CorridorLine.Value, 0.f)) / 100.f, 1.f, 1.f);
+        if (ACorridorBase* Corridor = GetWorld()->SpawnActor<ACorridorBase>(CorridorClass, Location, Rotation))
+        {
+            Corridor->SetActorScale3D(Scale);
+            Corridors.Add(Corridor);
+        }
+        
+    }
+    return Corridors;
 }
 
 void UDungeonSubsystem::CheckAllRoomsSleeping()
